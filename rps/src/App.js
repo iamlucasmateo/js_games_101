@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './App.css';
 
 import { RPS } from './controllers/rps';
+import { TicTacToe } from './controllers/ttt';
 import { Menu } from './controllers/menu';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
   }
   const selectionToScreen = {
     RPS: <RPS/>,
+    TTT: <TicTacToe/>
   }
 
   return (
