@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { GeneralButton, PlayerMoveSection, ResultsDetails } from '../components/rps';
+import { PlayerMoveSection, ResultsDetails } from '../components/rps';
+import { GeneralButton } from '../components/general';
 import { Game } from '../logic/rps';
 
 export const RPS = () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Square } from "../components/ttt";
 import { TTTGame } from "../logic/ttt";
+import { GeneralButton } from "../components/general";
 
 export const TicTacToe = () => {
     const [game, setGame] = useState(new TTTGame());
@@ -14,7 +15,15 @@ export const TicTacToe = () => {
         game.update(x, y)
         setBoard(game.board);
         setTurn(game.turn);
-        setWinner(game.winner)
+        setWinner(game.winner);
+    }
+
+    const onNewGameClick = (click) => {
+        const newGame = new TTTGame();
+        setGame(newGame)
+        setBoard(newGame.board);
+        setTurn(newGame.turn);
+        setWinner(newGame.winner);
     }
 
     return (
@@ -40,6 +49,7 @@ export const TicTacToe = () => {
                 <p>Turn: {turn}</p>
                 <p>Winner: {winner}</p>
             </div>
+            <GeneralButton text="New TicTacToe Game" onClick={onNewGameClick}/>
 
         </div>
     )

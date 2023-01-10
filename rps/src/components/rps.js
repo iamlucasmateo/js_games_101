@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
 
-export const GeneralButton = ({text, onClick}) => {
-    const onPressButton = () => {
-        onClick();
-    }
-
-    return (
-        <button onClick={onPressButton}>{text}</button>
-    )
-}
-
 export const RPSDropdown = ({margin}) => {
     return (
         <select name="options" id="options" style={{"margin": `${margin}px`}}>

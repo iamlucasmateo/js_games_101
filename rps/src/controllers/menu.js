@@ -11,6 +11,8 @@ export const Menu = ({onMenuChange}) => {
             <option value="Menu">Choose game</option>
             <option value="RPS">RPS</option>
             <option value="TTT">TicTacToe</option>
+            <option value="Breakout">Breakout</option>
+            <option value="Canvas">Canvas</option>
         </select>
     )
 }

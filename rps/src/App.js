@@ -3,6 +3,8 @@ import './App.css';
 
 import { RPS } from './controllers/rps';
 import { TicTacToe } from './controllers/ttt';
+import { Breakout } from './controllers/breakout';
+import { CanvasExample } from './controllers/canvasExample';
 import { Menu } from './controllers/menu';
 
 function App() {
@@ -12,7 +14,9 @@ function App() {
   }
   const selectionToScreen = {
     RPS: <RPS/>,
-    TTT: <TicTacToe/>
+    TTT: <TicTacToe/>,
+    Breakout: <Breakout/>,
+    Canvas: <CanvasExample/>
   }
 
   return (
