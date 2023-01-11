@@ -1,66 +1,76 @@
-export class TileMapCanvas {
-    constructor(imageMap, canvas, numberOfColumns, numberOfRows) {
-        this.imageMap = imageMap;
-        this.canvas = canvas;
-        this.context = this.canvas.getContext("2d");
-        this.numberOfColumns = numberOfColumns;
-        this.numberOfRows = numberOfRows;
-        this.canvasWidth = canvas.width;
-        this.canvasHeight = canvas.height;
-        this.#normalizeCanvasAspectRatio();
-    }
+import { useRef, useEffect, useState } from "react";
+import { TileMapCanvas } from "./canvas";
+import { GameStateEnum, ImageMap, UserStateEnum } from "../schema/breakout";
 
-    updateCanvas(matrix) {
-        for (let col = 0; col < this.numberOfColumns; col++) {
-            for (let row = 0; row < this.numberOfRows; row++) {
-                this.#drawTile(matrix, row, col);
+
+const breakoutCanvasStyle = {
+    width: "520px",
+    height: "520px",
+    border: "1px solid white" 
+}
+
+export const BreakoutCanvas = ({breakoutMatrix}) => {
+    let canvasRef = useRef();
+    const [userState, setUserState] = useState(UserStateEnum.Static);
+    
+    const onKeyDown = (event) => {
+        const SPACEBAR_VALUE = " "; 
+        let newUserState = userState;
+        if (breakoutMatrix.gameState === GameStateEnum.Playing) {
+            if (event.key === "ArrowLeft") {
+                newUserState = UserStateEnum.Left;
+            } else if (event.key === "ArrowRight") {
+                newUserState = UserStateEnum.Right;
+            }
+        } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
+            if (event.key === SPACEBAR_VALUE) {
+                breakoutMatrix.setGameState(GameStateEnum.Playing);
             }
         }
+        setUserState(newUserState);
     }
 
-    showTextCanvas(text) {
-        this.context.font = "30px Arial";
-        this.context.fillStyle = "red";
-        this.context.textAlign = "center";
-        this.context.fillText(text, this.canvasWidth/2, this.canvasWidth/2);
-    }
 
-    #drawTile(matrix, col, row) {
-        const tileKey = matrix[row][col];
-        const tileFill = this.imageMap[tileKey];
-        const tileWidth = this.canvasWidth / this.numberOfColumns;
-        const tileHeight = this.canvasHeight / this.numberOfRows;
-        const xCoord = col * tileWidth;
-        const yCoord = row * tileHeight;
-        if (typeof tileFill === Image) {
-            this.context.drawImage(tileFill, xCoord, yCoord, tileWidth, tileHeight);
-        } else if (typeof tileFill === "string") {
-            this.context.fillStyle = tileFill;
-            this.context.fillRect(xCoord, yCoord, tileWidth, tileHeight);
-        }
-    }
+    useEffect(() => {
+        const numberOfColumns = breakoutMatrix.numberOfColumns;
+        const numberOfRows = breakoutMatrix.numberOfRows;
+        const tileMap = new TileMapCanvas(ImageMap, canvasRef.current, numberOfRows, numberOfColumns);
+        let requestId;
+        const render = () => {
+            if (breakoutMatrix.gameState === GameStateEnum.Playing) {
+                breakoutMatrix.update(userState);
+                const gameMatrix = breakoutMatrix.getMatrix();
+                tileMap.updateCanvas(gameMatrix);
+            } else if (breakoutMatrix.gameState === GameStateEnum.GameOver) {
+                tileMap.showTextCanvas("Game Over");
+            } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
+                setUserState(UserStateEnum.Static);
+                breakoutMatrix.initialize();
+                tileMap.updateCanvas(breakoutMatrix.getMatrix());
+            }
+            requestId = requestAnimationFrame(render);
+        };
+        render();
+        return () => {
+            cancelAnimationFrame(requestId);
+        };
+    }, [userState, breakoutMatrix]);
 
-    #getPixelRatio = () => {
-        const backingStore =
-            this.context.backingStorePixelRatio ||
-            this.context.webkitBackingStorePixelRatio ||
-            this.context.mozBackingStorePixelRatio ||
-            this.context.msBackingStorePixelRatio ||
-            this.context.oBackingStorePixelRatio ||
-            this.context.backingStorePixelRatio ||
-            1;
-        
-        return (window.devicePixelRatio || 1) / backingStore;
-    };
+    return (
+        <div tabIndex={-1} onKeyDown={onKeyDown}>
+            <canvas ref={canvasRef} style={breakoutCanvasStyle}></canvas>
+        </div>
+    );
+}
 
-    #normalizeCanvasAspectRatio = () => {
-        const ratio = this.#getPixelRatio();
-        const width = getComputedStyle(this.canvas).getPropertyValue("width").slice(0, -2);
-        const height = getComputedStyle(this.canvas).getPropertyValue("height").slice(0, -2);
-        
-        this.canvas.width = width * ratio;
-        this.canvas.height = height * ratio;
-        this.canvas.style.width = `${width}px`;
-        this.canvas.style.height = `${height}px`;
+export const ButtonSection = ({onPlayAgainClick}) => {
+    const sectionStyle = {
+        "marginLeft": "10px",
     }
+    return (
+        <div style={sectionStyle}>
+            <button onClick={onPlayAgainClick}>PlayAgain</button>
+        </div>
+    )
+
 }

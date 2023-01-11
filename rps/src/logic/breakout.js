@@ -32,13 +32,11 @@ export class BreakoutMatrix {
         this.numberOfColumns = numberOfColumns;
         this.numberOfRows = numberOfRows;
         this.userBar = null;
-        this.#initUserBar();
         this.ball = null;
-        this.#initBall();
         this.matrix = null;
-        this.#initMatrix();
-        this.updateCalls = 1;
-        this.gameState = GameStateEnum.Init;
+        this.updateCalls = null;
+        this.gameState = null;
+        this.initialize();
     }
 
     update = (userState) => {
@@ -54,6 +52,14 @@ export class BreakoutMatrix {
     }
 
     getMatrix = () => this.matrix;
+
+    initialize = () => {
+        this.#initUserBar();
+        this.#initBall();
+        this.#initMatrix();
+        this.updateCalls = 1;
+        this.gameState = GameStateEnum.Init;
+    }
 
     setGameState = (gameState) => {
         this.gameState = gameState;
@@ -182,7 +188,7 @@ export class BreakoutMatrix {
         const initColumn = Math.round(this.numberOfColumns / 2);
         const columnDirection = BallColumnDirectionEnum.RIGHT;
         const rowDirection = BallRowDirectionEnum.Up;
-        const renderCycles = 3;
+        const renderCycles = 2;
         const ball = new Ball(initRow, initColumn, rowDirection, columnDirection, renderCycles); 
 
         this.ball = ball;
