@@ -23,8 +23,6 @@ export class TileMapCanvas {
         this.context.fillStyle = "red";
         this.context.textAlign = "center";
         this.context.fillText(text, this.canvasWidth/2, this.canvasWidth/2);
-        console.log("Text");
-        console.log(this.context);
     }
 
     #drawTile(matrix, col, row) {

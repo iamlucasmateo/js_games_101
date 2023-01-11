@@ -7,12 +7,22 @@ import {
 } from '../schema/breakout'
 
 
-class BallState {
-    constructor(row, column, rowDirection, columnDirection) {
+class Ball {
+    constructor(row, column, rowDirection, columnDirection, renderCycles) {
         this.row = row;
         this.column = column;
         this.rowDirection = rowDirection;
         this.columnDirection = columnDirection;
+        this.renderCycles = renderCycles;
+    }
+}
+
+class UserBar {
+    constructor(width, rowIndex, state, renderCycles) {
+        this.width = width;
+        this.rowIndex = rowIndex;
+        this.state = state;
+        this.renderCycles = renderCycles;
     }
 }
 
@@ -21,15 +31,22 @@ export class BreakoutMatrix {
     constructor(numberOfColumns, numberOfRows) {
         this.numberOfColumns = numberOfColumns;
         this.numberOfRows = numberOfRows;
-        this.#initialize();
+        this.userBar = null;
+        this.#initUserBar();
+        this.ball = null;
+        this.#initBall();
+        this.matrix = null;
+        this.#initMatrix();
+        this.updateCalls = 1;
+        this.gameState = GameStateEnum.Init;
     }
 
     update = (userState) => {
-        this.userState = userState;
+        this.userBar.state = userState;
         this.#updateMatrix();
         this.updateCalls += 1;
 
-        if (this.updateCalls === Math.max(this.userRenderCycles, this.ballRenderCycles) + 1) {
+        if (this.updateCalls === Math.max(this.userBar.renderCycles, this.ball.renderCycles) + 1) {
             this.updateCalls = 1;
         }
 
@@ -42,44 +59,30 @@ export class BreakoutMatrix {
         this.gameState = gameState;
     }
 
-    #initialize() {
-        this.userWidth = 7;
-        this.userRowIndex = this.numberOfRows - 2;
-        this.ballState = this.#createInitBallState(); 
-        this.matrix = this.#createInitMatrix();
-        this.updateCalls = 1;
-        this.userState = UserStateEnum.Static;
-        this.userRenderCycles = 1;
-        this.ballRenderCycles = 2;
-        this.gameState = GameStateEnum.Init;
-    }
-
     #updateMatrix = () => {
-        const updatedUserArray = this.#getUpdatedUserArray();
-        const updatedBallState = this.#getUpdatedBallState(updatedUserArray);
-        this.#updatePositions(updatedUserArray, updatedBallState);
+        this.#updateUser();
+        this.#updateBall();
     }
 
-    #getUpdatedUserArray = () => {
-        const userRow = this.matrix[this.userRowIndex];
+    #updateUser = () => {
+        const userRow = this.matrix[this.userBar.rowIndex];
         const currentUserStartColumn = userRow.indexOf(CellTypeEnum.User);
         
         const userAtLeftBoundary = currentUserStartColumn === 0;
-        const goingLeft = this.userState === UserStateEnum.Left;
-        const userAtRightBoundary = currentUserStartColumn + this.userWidth === this.numberOfColumns;
-        const goingRight = this.userState === UserStateEnum.Right;
-        const skipRenderCycle = (this.userRenderCycles % this.updateCalls !== 0)
-        const dontMoveUser = (userAtLeftBoundary && goingLeft) || (userAtRightBoundary && goingRight) || (skipRenderCycle) || this.userState === UserStateEnum.Static;
-        
-        const valueChange = dontMoveUser ? 0 : this.userState === UserStateEnum.Left ? -1 : 1;
+        const goingLeft = this.userBar.state === UserStateEnum.Left;
+        const userAtRightBoundary = currentUserStartColumn + this.userBar.width === this.numberOfColumns;
+        const goingRight = this.userBar.state === UserStateEnum.Right;
+        const skipRenderCycle = (this.userBar.renderCycles % this.updateCalls !== 0)
+        const dontMoveUser = (userAtLeftBoundary && goingLeft) || (userAtRightBoundary && goingRight) || (skipRenderCycle) || this.userBar.state === UserStateEnum.Static;
+        const valueChange = dontMoveUser ? 0 : this.userBar.state === UserStateEnum.Left ? -1 : 1;
         const newUserArray = this.#createUserArray(currentUserStartColumn + valueChange);
-        
-        return newUserArray;
+
+        this.matrix[this.userBar.rowIndex] = newUserArray; 
     }
 
-    #getUpdatedBallState = (userRow) => {
-        const newBallState = {...this.ballState};
-        const skipRenderCycle = this.updateCalls % this.ballRenderCycles !== 0; 
+    #updateBall = () => {
+        const newBallState = {...this.ball};
+        const skipRenderCycle = this.updateCalls % this.ball.renderCycles !== 0; 
         // Don't update ball
         if (skipRenderCycle) {
             return newBallState;
@@ -95,38 +98,34 @@ export class BreakoutMatrix {
         newBallState.column += columnValueUpdate;
         
         // Vertical update
-        const userBallCollision = this.#checkUserBallCollision(newBallState, userRow); 
-        if (userBallCollision) {
+        const userBallVerticalCollision = this.#checkUserBallVerticalCollision(newBallState); 
+        if (userBallVerticalCollision) {
             newBallState.rowDirection = BallRowDirectionEnum.Up;
-        } else if (newBallState.row === this.numberOfRows) {
-            newBallState.rowDirection = BallRowDirectionEnum.Down;
         } else if (newBallState.row === 0) {
             newBallState.rowDirection = BallRowDirectionEnum.Down;
         }
         const rowValueUpdate = newBallState.rowDirection === BallRowDirectionEnum.Up ? -1 : 1;
         newBallState.row += rowValueUpdate;
+ 
+        if (this.ball.row === this.numberOfRows - 1) {
+            this.gameState = GameStateEnum.GameOver;
+        } else {
+            this.#assignCellType(this.ball.row, this.ball.column, CellTypeEnum.Blank);
+            this.ball = newBallState;
+            this.#addBall(this.ball.row, this.ball.column);
+        }
         
-        return newBallState;
     }
 
-    #checkUserBallCollision = (ballState, userRow) => {
-        if (ballState.row !== this.userRowIndex - 1) return false;
+    #checkUserBallVerticalCollision = (ballState) => {
+        // TODO: change this to return an Enum of collisions (vertical, horizontal, none)
+        if (ballState.row !== this.userBar.rowIndex - 1) return false;
+        const userRow = this.matrix[this.userBar.rowIndex];
         let currentUserStartColumn = userRow.indexOf(CellTypeEnum.User);
-        const userColumns = this.#createArray(this.userWidth, () => ++currentUserStartColumn);
+        const userColumns = this.#createArray(this.userBar.width, () => ++currentUserStartColumn);
         if (userColumns.includes(ballState.column)) return true;
         
         return false;
-    }
-
-    #updatePositions = (updatedUserArray, updatedBallState) => {
-        this.matrix[this.userRowIndex] = updatedUserArray; 
-        this.matrix[this.ballState.row] = this.#createBlankRow();
-        this.ballState = updatedBallState; 
-        if (this.ballState.row === this.numberOfRows) {
-            this.gameState = GameStateEnum.GameOver;
-        } else {
-            this.matrix[this.ballState.row] = this.#createBallArray(this.ballState.column);
-        }
     }
 
     #createRow = (mapFunction) => {
@@ -142,7 +141,7 @@ export class BreakoutMatrix {
     }
 
     #createUserArray = (userStartColumn) => {
-        const userColumns = this.#createArray(this.userWidth, (_, index) => userStartColumn + index);
+        const userColumns = this.#createArray(this.userBar.width, (_, index) => userStartColumn + index);
         const getUserColumn = (_, column) => {
             if (userColumns.includes(column)) {
                 return CellTypeEnum.User;
@@ -155,42 +154,53 @@ export class BreakoutMatrix {
     } 
 
     #createUserInitArray = () => {
-        const columnLeftOfTheUser = Math.floor((this.numberOfColumns - this.userWidth) / 2);
+        const columnLeftOfTheUser = Math.floor((this.numberOfColumns - this.userBar.width) / 2);
         
         return this.#createUserArray(columnLeftOfTheUser + 1);
     } 
 
-    #createInitMatrix = () => {
-        const baseMatrix = Array.from(Array(this.numberOfRows));
-        return baseMatrix.map((_, row) => {
-            if (row === this.userRowIndex) {
+    #initMatrix = () => {
+        const emptyMatrix = Array.from(Array(this.numberOfRows));
+        const matrix = emptyMatrix.map((_, row) => {
+            if (row === this.userBar.rowIndex) {
                 return this.#createUserInitArray();
-            } else if (row === this.ballState.row) {
-                return this.#createInitBallArray();
             } else {
                 return this.#createBlankRow();
             }
         });
+
+        this.matrix = matrix;
+        const ballColumn = Math.floor(this.numberOfColumns / 2);
+        const ballRow = this.userBar.rowIndex - 1;
+        this.#addBall(ballRow, ballColumn);
+
+        return this.matrix
     }
     
-    #createInitBallState = function() {
-        const initRow = this.userRowIndex - 1;
+    #initBall = function() {
+        const initRow = this.userBar.rowIndex - 1;
         const initColumn = Math.round(this.numberOfColumns / 2);
         const columnDirection = BallColumnDirectionEnum.RIGHT;
         const rowDirection = BallRowDirectionEnum.Up;
-        const ballState = new BallState(initRow, initColumn, rowDirection, columnDirection); 
+        const renderCycles = 3;
+        const ball = new Ball(initRow, initColumn, rowDirection, columnDirection, renderCycles); 
 
-        return ballState;
+        this.ball = ball;
     }   
 
-    #createBallArray = (ballColumn) => {
-        const ballRow = this.#createBlankRow();
-        ballRow[ballColumn] = CellTypeEnum.Ball;
-
-        return ballRow;
+    #addBall = (row, column) => {
+        this.#assignCellType(row, column, CellTypeEnum.Ball);
     }
 
-    #createInitBallArray = () => {
-        return this.#createBallArray(this.ballState.column);
+    #assignCellType = (row, column, type) => {
+        this.matrix[row][column] = type;
+    }
+
+    #initUserBar = () => {
+        const userWidth = 7;
+        const userRowIndex = this.numberOfRows - 4;
+        const userInitState = UserStateEnum.Static;
+        const userRenderCycles = 1; 
+        this.userBar = new UserBar(userWidth, userRowIndex, userInitState, userRenderCycles);
     }
 }
