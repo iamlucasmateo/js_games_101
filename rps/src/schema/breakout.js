@@ -24,16 +24,38 @@ export const BallRowDirectionEnum = Object.freeze({
     Down: Symbol("Down")
 })
 
+const BlockTypesEnum = Object.freeze({
+    BlockWithLives_1: Symbol("BlockWithLives_1"),
+    BlockWithLives_2: Symbol("BlockWithLives_2"),
+    BlockWithLives_3: Symbol("BlockWithLives_3"),
+})
+
+export const BlockTypes = Object.values(BlockTypesEnum);
 
 export const CellTypeEnum = Object.freeze({
     Blank: Symbol("Blank"),
     User: Symbol("User"),
-    Ball: Symbol("Ball")
+    Ball: Symbol("Ball"),
+    ...BlockTypesEnum
 })
 
-export const ImageMap = {
-    [CellTypeEnum.Blank]: "#FFF",
-    [CellTypeEnum.User]: "#0A0",
-    [CellTypeEnum.Ball]: "#000"
+export const BlockReductionMap = {
+    [BlockTypesEnum.BlockWithLives_1]: CellTypeEnum.Blank,
+    [BlockTypesEnum.BlockWithLives_2]: CellTypeEnum.BlockWithLives_1,
+    [BlockTypesEnum.BlockWithLives_3]: CellTypeEnum.BlockWithLives_2,
 }
 
+export const InitBlocks1 = {
+    5: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_3,
+    },
+    8: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_2,
+    },
+    11: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_1,
+    },
+}

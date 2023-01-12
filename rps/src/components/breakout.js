@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { TileMapCanvas } from "./canvas";
-import { GameStateEnum, ImageMap, UserStateEnum } from "../schema/breakout";
+import { CellTypeEnum, GameStateEnum, UserStateEnum } from "../schema/breakout";
 
 
 const breakoutCanvasStyle = {
@@ -9,7 +9,25 @@ const breakoutCanvasStyle = {
     border: "1px solid white" 
 }
 
-export const BreakoutCanvas = ({breakoutMatrix}) => {
+function fillRectangleWithColor(color) {
+    function fillRectangle(context, xCoord, yCoord, tileWidth, tileHeight) {
+        context.fillStyle = color;
+        context.fillRect(xCoord, yCoord, tileWidth, tileHeight);
+    }
+
+    return fillRectangle;
+}
+
+export const BreakoutImageMap = {
+    [CellTypeEnum.Blank]: fillRectangleWithColor("#FFF"),
+    [CellTypeEnum.User]: fillRectangleWithColor("#0A0"),
+    [CellTypeEnum.Ball]: fillRectangleWithColor("#000"),
+    [CellTypeEnum.BlockWithLives_1]: fillRectangleWithColor("#00F"),
+    [CellTypeEnum.BlockWithLives_2]: fillRectangleWithColor("#00C"),
+    [CellTypeEnum.BlockWithLives_3]: fillRectangleWithColor("#009"),
+}
+
+export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
     let canvasRef = useRef();
     const [userState, setUserState] = useState(UserStateEnum.Static);
     
@@ -34,7 +52,7 @@ export const BreakoutCanvas = ({breakoutMatrix}) => {
     useEffect(() => {
         const numberOfColumns = breakoutMatrix.numberOfColumns;
         const numberOfRows = breakoutMatrix.numberOfRows;
-        const tileMap = new TileMapCanvas(ImageMap, canvasRef.current, numberOfRows, numberOfColumns);
+        const tileMap = new TileMapCanvas(BreakoutImageMap, canvasRef.current, numberOfRows, numberOfColumns);
         let requestId;
         const render = () => {
             if (breakoutMatrix.gameState === GameStateEnum.Playing) {
@@ -45,7 +63,7 @@ export const BreakoutCanvas = ({breakoutMatrix}) => {
                 tileMap.showTextCanvas("Game Over");
             } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
                 setUserState(UserStateEnum.Static);
-                breakoutMatrix.initialize();
+                breakoutMatrix.initialize(initBlocks);
                 tileMap.updateCanvas(breakoutMatrix.getMatrix());
             }
             requestId = requestAnimationFrame(render);
@@ -54,7 +72,7 @@ export const BreakoutCanvas = ({breakoutMatrix}) => {
         return () => {
             cancelAnimationFrame(requestId);
         };
-    }, [userState, breakoutMatrix]);
+    }, [userState, breakoutMatrix, initBlocks]);
 
     return (
         <div tabIndex={-1} onKeyDown={onKeyDown}>

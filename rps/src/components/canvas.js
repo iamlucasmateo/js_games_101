@@ -27,17 +27,15 @@ export class TileMapCanvas {
 
     #drawTile(matrix, col, row) {
         const tileKey = matrix[row][col];
-        const tileFill = this.imageMap[tileKey];
+        if (tileKey === undefined) {
+            console.log(row, col, matrix[row][col]);
+        }
         const tileWidth = this.canvasWidth / this.numberOfColumns;
         const tileHeight = this.canvasHeight / this.numberOfRows;
         const xCoord = col * tileWidth;
         const yCoord = row * tileHeight;
-        if (typeof tileFill === Image) {
-            this.context.drawImage(tileFill, xCoord, yCoord, tileWidth, tileHeight);
-        } else if (typeof tileFill === "string") {
-            this.context.fillStyle = tileFill;
-            this.context.fillRect(xCoord, yCoord, tileWidth, tileHeight);
-        }
+        const functionToRun = this.imageMap[tileKey];
+        functionToRun(this.context, xCoord, yCoord, tileWidth, tileHeight);
     }
 
     #getPixelRatio = () => {
