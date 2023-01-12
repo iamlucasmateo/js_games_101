@@ -27,6 +27,8 @@ export const BreakoutImageMap = {
     [CellTypeEnum.BlockWithLives_3]: fillRectangleWithColor("#009"),
 }
 
+const resumableStates = [GameStateEnum.Init, GameStateEnum.Paused]
+
 export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
     let canvasRef = useRef();
     const [userState, setUserState] = useState(UserStateEnum.Static);
@@ -39,8 +41,10 @@ export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
                 newUserState = UserStateEnum.Left;
             } else if (event.key === "ArrowRight") {
                 newUserState = UserStateEnum.Right;
+            } else if (event.key === SPACEBAR_VALUE) {
+                breakoutMatrix.setGameState(GameStateEnum.Paused);
             }
-        } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
+        } else if (resumableStates.includes(breakoutMatrix.gameState)) {
             if (event.key === SPACEBAR_VALUE) {
                 breakoutMatrix.setGameState(GameStateEnum.Playing);
             }
@@ -61,6 +65,8 @@ export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
                 tileMap.updateCanvas(gameMatrix);
             } else if (breakoutMatrix.gameState === GameStateEnum.GameOver) {
                 tileMap.showTextCanvas("Game Over");
+            } else if (breakoutMatrix.gameState === GameStateEnum.UserWon) {
+                tileMap.showTextCanvas("You Won!");
             } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
                 setUserState(UserStateEnum.Static);
                 breakoutMatrix.initialize(initBlocks);

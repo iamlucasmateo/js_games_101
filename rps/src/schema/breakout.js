@@ -2,7 +2,9 @@ export const GameStateEnum = Object.freeze({
     Start: Symbol("Start"),
     Playing: Symbol("Playing"),
     GameOver: Symbol("Game Over"),
-    Init: Symbol("Init")
+    Init: Symbol("Init"),
+    Paused: Symbol("Paused"),
+    UserWon: Symbol("UserWon")
 })
 
 
@@ -46,6 +48,13 @@ export const BlockReductionMap = {
 }
 
 export const InitBlocks1 = {
+    8: {
+        blockQuantity: 2,
+        blockType: BlockTypesEnum.BlockWithLives_1,
+    },
+}
+
+export const InitBlocks2 = {
     5: {
         blockQuantity: 7,
         blockType: BlockTypesEnum.BlockWithLives_3,

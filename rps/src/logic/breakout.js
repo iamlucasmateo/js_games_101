@@ -28,8 +28,6 @@ class UserBar {
     }
 }
 
-export const MATRICES = [];
-
 export class BreakoutMatrix {
     constructor(numberOfColumns, numberOfRows, initBlocks) {
         this.numberOfColumns = numberOfColumns;
@@ -40,15 +38,19 @@ export class BreakoutMatrix {
         this.updateCalls = 1;
         this.gameState = GameStateEnum.Init;
         this.blockWidth = 5;
+        this.initBlocks = initBlocks;
         this.initialize(initBlocks);
     }
 
     update = (userState) => {
         this.userBar.state = userState;
-        this.#updateMatrix();
-        this.updateCalls += 1;
+        if (this.gameState === GameStateEnum.Playing) {
+            this.#updateMatrix();
+            this.updateCalls += 1;
+        }
 
-        if (this.updateCalls === Math.max(this.userBar.renderCycles, this.ball.renderCycles) + 1) {
+        const largestRenderCycle = Math.max(this.userBar.renderCycles, this.ball.renderCycles) + 1 
+        if (this.updateCalls === largestRenderCycle) {
             this.updateCalls = 1;
         }
 
@@ -83,7 +85,7 @@ export class BreakoutMatrix {
         const goingLeft = this.userBar.state === UserStateEnum.Left;
         const userAtRightBoundary = currentUserStartColumn + this.userBar.width === this.numberOfColumns;
         const goingRight = this.userBar.state === UserStateEnum.Right;
-        const skipRenderCycle = (this.userBar.renderCycles % this.updateCalls !== 0)
+        const skipRenderCycle = (this.updateCalls % this.userBar.renderCycles !== 0)
         const dontMoveUser = (userAtLeftBoundary && goingLeft) || (userAtRightBoundary && goingRight) || (skipRenderCycle) || this.userBar.state === UserStateEnum.Static;
         const valueChange = dontMoveUser ? 0 : this.userBar.state === UserStateEnum.Left ? -1 : 1;
         const newUserArray = this.#createUserArray(currentUserStartColumn + valueChange);
@@ -111,28 +113,15 @@ export class BreakoutMatrix {
         this.#assignCellType(this.ball.row, this.ball.column, CellTypeEnum.Blank);        
         this.ball = newBallState;
         this.#addBall(this.ball.row, this.ball.column);
-        
-        if (this.ball.row === this.userBar.rowIndex - 1) {
-            console.log("-1")
-            console.log(newBallState.row !== this.userBar.rowIndex - 1)
-            // console.log(this.matrix[this.ball.row])
-            // console.log(this.matrix[this.userBar.rowIndex])
-            const userRow = this.matrix[this.userBar.rowIndex];
-            let currentUserStartColumn = userRow.indexOf(CellTypeEnum.User);
-            const userColumns = this.#createArray(this.userBar.width, () => currentUserStartColumn++);
-            console.log(userColumns);
-            console.log(this.ball.column);
-            if (userColumns.includes(this.ball.column)) {
-                console.log(this.matrix[this.userBar.rowIndex])
-                console.log("OK");
-            }
-        }
 
         const gameOver = this.ball.row === this.numberOfRows - 1;
         if (gameOver) {
             this.gameState = GameStateEnum.GameOver;
         }
 
+        if (this.#userWon()) {
+            this.gameState = GameStateEnum.UserWon;
+        }
     }
 
     #updateIfBoundaryCollision = (newBallState) => {
@@ -151,47 +140,157 @@ export class BreakoutMatrix {
     }
 
     #updateIfBlockCollision = (newBallState) => {
-        // Horizontal block collision
+        let [rowForBlockReduction, columnForBlockReduction] = this.#updateBlockRowAndColumnIfHorizontalCollision(newBallState);
+        if (rowForBlockReduction === null && columnForBlockReduction === null) {
+            [rowForBlockReduction, columnForBlockReduction] = this.#updateBlockRowAndColumnIfVerticalCollision(newBallState);
+        }
+        if (rowForBlockReduction === null && columnForBlockReduction === null) {
+            [rowForBlockReduction, columnForBlockReduction] = this.#updateBlockRowAndColumnIfDiagonalCollision(newBallState);
+        }
+        if (rowForBlockReduction === null && columnForBlockReduction === null) {
+            return;
+        }
+        this.#reduceBlock(rowForBlockReduction, columnForBlockReduction);
+    }
+
+    #updateBlockRowAndColumnIfHorizontalCollision = (newBallState) => {
+        let rowForBlockReduction = null;
+        let columnForBlockReduction = null;
         const blockToTheLeft = BlockTypes.includes(this.matrix[newBallState.row][newBallState.column - 1]);
         const blockToTheRight = BlockTypes.includes(this.matrix[newBallState.row][newBallState.column + 1]);
         if (blockToTheLeft) {
             newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            this.#reduceBlock(newBallState.row, newBallState.column - 1);
+            rowForBlockReduction = newBallState.row;
+            columnForBlockReduction = newBallState.column - 1 
         } else if (blockToTheRight) {
             newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            this.#reduceBlock(newBallState.row, newBallState.column + 1);
+            rowForBlockReduction = newBallState.row
+            columnForBlockReduction = newBallState.column + 1;
         }
 
-        // Vertical block collision
+        return [rowForBlockReduction, columnForBlockReduction]
+    }
+
+    #updateBlockRowAndColumnIfVerticalCollision = (newBallState) => {
+        let rowForBlockReduction = null;
+        let columnForBlockReduction = null;
         const blockOnTop = (newBallState.row > 0) && (BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column]));
         const blockBelow = BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column]);
         if (blockOnTop) {
             newBallState.rowDirection = BallRowDirectionEnum.Down;
-            this.#reduceBlock(newBallState.row - 1 , newBallState.column);
+            rowForBlockReduction = newBallState.row - 1;
+            columnForBlockReduction = newBallState.column;
         } else if (blockBelow) {
             newBallState.rowDirection = BallRowDirectionEnum.Up;
-            this.#reduceBlock(newBallState.row + 1, newBallState.column);
+            rowForBlockReduction = newBallState.row + 1;
+            columnForBlockReduction = newBallState.column;
         }
+
+        return [rowForBlockReduction, columnForBlockReduction]
+    }
+
+    #updateBlockRowAndColumnIfDiagonalCollision = (newBallState) => {
+        let rowForBlockReduction = null;
+        let columnForBlockReduction = null;
+        const collisionToTheLeftDown = (
+            BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column - 1])
+            && newBallState.rowDirection === BallRowDirectionEnum.Down
+            && newBallState.columnDirection === BallColumnDirectionEnum.Left
+        )
+        if (collisionToTheLeftDown) {
+            newBallState.rowDirection = BallRowDirectionEnum.Up;
+            newBallState.columnDirection = BallColumnDirectionEnum.Right;
+            rowForBlockReduction = newBallState.row + 1;
+            columnForBlockReduction = newBallState.column - 1;
+        }
+        const collisionToTheLeftUp = (
+            newBallState.row - 1 > 0
+            && BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column - 1])
+            && newBallState.rowDirection === BallRowDirectionEnum.Up
+            && newBallState.columnDirection === BallColumnDirectionEnum.Left 
+        )
+        if (collisionToTheLeftUp) {
+            newBallState.rowDirection = BallRowDirectionEnum.Down;
+            newBallState.columnDirection = BallColumnDirectionEnum.Right;
+            rowForBlockReduction = newBallState.row - 1;
+            columnForBlockReduction = newBallState.column - 1;
+        }
+        const collisionToTheRightDown = (
+            BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column - 1])
+            && newBallState.rowDirection === BallRowDirectionEnum.Down
+            && newBallState.columnDirection === BallColumnDirectionEnum.Right
+        )
+        if (collisionToTheRightDown) {
+            newBallState.rowDirection = BallRowDirectionEnum.Up;
+            newBallState.columnDirection = BallColumnDirectionEnum.Left;
+            rowForBlockReduction = newBallState.row + 1;
+            columnForBlockReduction = newBallState.column - 1;
+        } 
+        const collisionToTheRightUp = ( 
+            newBallState.row - 1 > 0
+            && BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column - 1])
+            && newBallState.rowDirection === BallRowDirectionEnum.Up
+            && newBallState.columnDirection === BallColumnDirectionEnum.Right
+        )
+        if (collisionToTheRightUp) {
+            newBallState.rowDirection = BallRowDirectionEnum.Down;
+            newBallState.columnDirection = BallColumnDirectionEnum.Left;
+            rowForBlockReduction = newBallState.row - 1;
+            columnForBlockReduction = newBallState.column - 1;
+        }
+
+        return [rowForBlockReduction, columnForBlockReduction]
     }
 
     #reduceBlock = (row, column) => {
         const isBlockColumn = (col) => BlockTypes.includes(this.matrix[row][col]);
         // check to the right
         let columnToCheck = column;
+        const columnsToReduce = []
         while (isBlockColumn(columnToCheck)) {
-            const reducedBlock = BlockReductionMap[this.matrix[row][columnToCheck]];
-            this.matrix[row][columnToCheck] = reducedBlock;
+            columnsToReduce.push(columnToCheck);
             columnToCheck += 1;
         }
 
         // check to the left
         columnToCheck = column - 1;
         while (isBlockColumn(columnToCheck)) {
-            const reducedBlock = BlockReductionMap[this.matrix[row][columnToCheck]];
-            this.matrix[row][columnToCheck] = reducedBlock;
+            columnsToReduce.push(columnToCheck);
             columnToCheck -= 1;
         }
 
+        this.#addMissingColumn(row, columnsToReduce);
+        const reducedBlock = BlockReductionMap[this.matrix[row][column]];
+        for (let col of columnsToReduce) {
+            this.matrix[row][col] = reducedBlock;
+        }
+    }
+
+    #addMissingColumn = (row, columnsToReduce) => {
+        const BlockOrBall = [CellTypeEnum.Ball, ...BlockTypes]
+        const minColumn = Math.min(...columnsToReduce);  
+        const maxColumn = Math.max(...columnsToReduce);
+        const missingColumnOnTheLeft = BlockOrBall.includes(this.matrix[row][minColumn - 1]);
+        const missingColumnOnTheRight = BlockOrBall.includes(this.matrix[row][maxColumn + 1]);
+        if (missingColumnOnTheLeft) {
+            columnsToReduce.push(minColumn - 1);
+        } else if (missingColumnOnTheRight) {
+            columnsToReduce.push(maxColumn + 1);
+        }
+    }
+
+    #userWon = () => {
+        let userWon = true;
+        for (let row of Object.keys(this.initBlocks)) {
+            for (let cell of this.matrix[row]) {
+                if (cell !== CellTypeEnum.Blank) {
+                    userWon = false;
+                    break;
+                }
+            }
+        }
+
+        return userWon;
     }
 
     #updateIfUserCollision = (newBallState) => {
