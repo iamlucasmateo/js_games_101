@@ -18,10 +18,17 @@ export const Breakout = () => {
         breakoutMatrix.initialize(InitBlocks1);
     }
 
+    const onChangeSpeedValue = (event) => {
+        console.log(event.target.value);
+    }
+
     return (
         <div style={style}>
             <BreakoutCanvas breakoutMatrix={breakoutMatrix} initBlocks={InitBlocks1}/>
-            <ButtonSection onPlayAgainClick={onPlayAgainClick}/>
+            <ButtonSection
+                onPlayAgainClick={onPlayAgainClick}
+                onChangeSpeedValue={onChangeSpeedValue}
+            />
         </div>
     );
 }

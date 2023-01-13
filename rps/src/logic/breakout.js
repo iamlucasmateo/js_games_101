@@ -192,51 +192,57 @@ export class BreakoutMatrix {
     #updateBlockRowAndColumnIfDiagonalCollision = (newBallState) => {
         let rowForBlockReduction = null;
         let columnForBlockReduction = null;
+        
+        const columnToTheRight = newBallState.column + 1;
+        const columnToTheLeft = newBallState.column - 1;
+        const rowUp = newBallState.row - 1;
+        const rowDown = newBallState.row + 1;   
+        
         const collisionToTheLeftDown = (
-            BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column - 1])
+            BlockTypes.includes(this.matrix[rowDown][columnToTheLeft])
             && newBallState.rowDirection === BallRowDirectionEnum.Down
             && newBallState.columnDirection === BallColumnDirectionEnum.Left
         )
         if (collisionToTheLeftDown) {
             newBallState.rowDirection = BallRowDirectionEnum.Up;
             newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            rowForBlockReduction = newBallState.row + 1;
-            columnForBlockReduction = newBallState.column - 1;
+            rowForBlockReduction = rowDown;
+            columnForBlockReduction = columnToTheLeft;
         }
         const collisionToTheLeftUp = (
-            newBallState.row - 1 > 0
-            && BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column - 1])
+            rowUp > 0
+            && BlockTypes.includes(this.matrix[rowUp][columnToTheLeft])
             && newBallState.rowDirection === BallRowDirectionEnum.Up
             && newBallState.columnDirection === BallColumnDirectionEnum.Left 
         )
         if (collisionToTheLeftUp) {
             newBallState.rowDirection = BallRowDirectionEnum.Down;
             newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            rowForBlockReduction = newBallState.row - 1;
-            columnForBlockReduction = newBallState.column - 1;
+            rowForBlockReduction = rowUp;
+            columnForBlockReduction = columnToTheLeft;
         }
         const collisionToTheRightDown = (
-            BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column - 1])
+            BlockTypes.includes(this.matrix[rowDown][columnToTheRight])
             && newBallState.rowDirection === BallRowDirectionEnum.Down
             && newBallState.columnDirection === BallColumnDirectionEnum.Right
         )
         if (collisionToTheRightDown) {
             newBallState.rowDirection = BallRowDirectionEnum.Up;
             newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            rowForBlockReduction = newBallState.row + 1;
-            columnForBlockReduction = newBallState.column - 1;
+            rowForBlockReduction = rowDown;
+            columnForBlockReduction = columnToTheRight;
         } 
         const collisionToTheRightUp = ( 
-            newBallState.row - 1 > 0
-            && BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column - 1])
+            rowUp > 0
+            && BlockTypes.includes(this.matrix[rowUp][columnToTheRight])
             && newBallState.rowDirection === BallRowDirectionEnum.Up
             && newBallState.columnDirection === BallColumnDirectionEnum.Right
         )
         if (collisionToTheRightUp) {
             newBallState.rowDirection = BallRowDirectionEnum.Down;
             newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            rowForBlockReduction = newBallState.row - 1;
-            columnForBlockReduction = newBallState.column - 1;
+            rowForBlockReduction = rowUp;
+            columnForBlockReduction = columnToTheRight;
         }
 
         return [rowForBlockReduction, columnForBlockReduction]
@@ -385,7 +391,7 @@ export class BreakoutMatrix {
         const initColumn = Math.round(this.numberOfColumns / 2);
         const columnDirection = BallColumnDirectionEnum.Right;
         const rowDirection = BallRowDirectionEnum.Up;
-        const renderCycles = 1;
+        const renderCycles = 2;
         const ball = new Ball(initRow, initColumn, rowDirection, columnDirection, renderCycles);
 
         this.ball = ball;
@@ -400,7 +406,7 @@ export class BreakoutMatrix {
     }
 
     #initUserBar = () => {
-        const userWidth = 50;
+        const userWidth = 10;
         const userRowIndex = this.numberOfRows - 4;
         const userInitState = UserStateEnum.Static;
         const userRenderCycles = 1;

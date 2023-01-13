@@ -47,17 +47,33 @@ export const BlockReductionMap = {
     [BlockTypesEnum.BlockWithLives_3]: CellTypeEnum.BlockWithLives_2,
 }
 
-export const InitBlocks1 = {
+export const InitBlocks2 = {
     8: {
         blockQuantity: 2,
         blockType: BlockTypesEnum.BlockWithLives_1,
     },
 }
 
-export const InitBlocks2 = {
+export const InitBlocks1 = {
     5: {
         blockQuantity: 7,
         blockType: BlockTypesEnum.BlockWithLives_3,
+    },
+    8: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_2,
+    },
+    11: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_1,
+    },
+}
+
+
+export const InitBlocks3 = {
+    5: {
+        blockQuantity: 7,
+        blockType: BlockTypesEnum.BlockWithLives_1,
     },
     8: {
         blockQuantity: 7,
