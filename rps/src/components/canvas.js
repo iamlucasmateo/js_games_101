@@ -27,9 +27,6 @@ export class TileMapCanvas {
 
     #drawTile(matrix, col, row) {
         const tileKey = matrix[row][col];
-        if (tileKey === undefined) {
-            console.log(row, col, matrix[row][col]);
-        }
         const tileWidth = this.canvasWidth / this.numberOfColumns;
         const tileHeight = this.canvasHeight / this.numberOfRows;
         const xCoord = col * tileWidth;

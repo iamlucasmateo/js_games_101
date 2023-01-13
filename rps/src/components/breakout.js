@@ -29,7 +29,12 @@ export const BreakoutImageMap = {
 
 const resumableStates = [GameStateEnum.Init, GameStateEnum.Paused]
 
-export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
+export const BreakoutCanvas = ({
+    breakoutMatrix,
+    initBlocks,
+    ballSpeed,
+    barSize,
+}) => {
     let canvasRef = useRef();
     const [userState, setUserState] = useState(UserStateEnum.Static);
     
@@ -69,7 +74,6 @@ export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
                 tileMap.showTextCanvas("You Won!");
             } else if (breakoutMatrix.gameState === GameStateEnum.Init) {
                 setUserState(UserStateEnum.Static);
-                breakoutMatrix.initialize(initBlocks);
                 tileMap.updateCanvas(breakoutMatrix.getMatrix());
             }
             requestId = requestAnimationFrame(render);
@@ -88,25 +92,55 @@ export const BreakoutCanvas = ({ breakoutMatrix, initBlocks }) => {
 }
 
 
-const RadioOptions = ({onChangeSpeedValue}) => {
+const BallSpeedOptions = ({onChangeSpeedValue}) => {
     return (
         <div onChange={onChangeSpeedValue}>
             <p>Ball speed</p>
-            <input type="radio" value="1" name="BallSpeed"/>Slow
-            <input type="radio" value="2" name="BallSpeed" />Fast
+            <input type="radio" value={2} name="BallSpeed" defaultChecked={true}/>Slow
+            <input type="radio" value={1} name="BallSpeed" />Fast
         </div>
     )
 }
 
 
-export const ButtonSection = ({onPlayAgainClick, onChangeSpeedValue}) => {
+const BarSizeOptions = ({onChangeBarSize}) => {
+    return (
+        <div onChange={onChangeBarSize}>
+            <p>Bar Size</p>
+            <input type="radio" value={"STANDARD"} name="BarSize" defaultChecked={true}/>Standard
+            <input type="radio" value={"BIG"} name="BarSize"/>Big
+        </div>
+    )
+}
+
+
+const LevelOptions = ({onChangeLevel}) => {
+    return (
+        <div onChange={onChangeLevel}>
+            <p>Level</p>
+            <input type="radio" value="Level 1" name="Level"/>Level 1
+            <input type="radio" value="Level 2" name="Level" defaultChecked={true}/>Level 2
+            <input type="radio" value="Level 3" name="Level"/>Level 3
+        </div>
+    )
+}
+
+
+export const SettingsSection = ({
+    onPlayAgainClick,
+    onChangeSpeedValue,
+    onChangeBarSize,
+    onChangeLevel
+}) => {
     const sectionStyle = {
         "marginLeft": "10px",
     }
     return (
         <div style={sectionStyle}>
             <button onClick={onPlayAgainClick}>PlayAgain</button>
-            <RadioOptions onChangeSpeedValue={onChangeSpeedValue}/>
+            <BallSpeedOptions onChangeSpeedValue={onChangeSpeedValue}/>
+            <BarSizeOptions onChangeBarSize={onChangeBarSize}/>
+            <LevelOptions onChangeLevel={onChangeLevel}/>
         </div>
     )
 
