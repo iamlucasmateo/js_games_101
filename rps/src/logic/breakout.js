@@ -1,6 +1,4 @@
 import {
-    BallColumnDirectionEnum,
-    BallRowDirectionEnum,
     BlockReductionMap,
     BlockTypes,
     CellTypeEnum,
@@ -9,15 +7,45 @@ import {
 } from '../schema/breakout'
 
 
+const BoundaryCollisionEnum = Object.freeze({
+    VerticalUp: Symbol("VerticalUp"),
+    VerticalDown: Symbol("VerticalDown"),
+    HorizontalLeft: Symbol("HorizontalLeft"),
+    HorizontalRight: Symbol("HorizontalRight")
+})
+
+
+const BallHorizontalDirectionEnum = Object.freeze({
+    Right: Symbol("Right"),
+    Left: Symbol("Left")
+})
+
+
+const BallVerticalDirectionEnum = Object.freeze({
+    Up: Symbol("Up"),
+    Down: Symbol("Down")
+})
+
+
 class Ball {
-    constructor(row, column, rowDirection, columnDirection, renderCycles) {
+    constructor(row, column, verticalDirection, horizontalDirection, renderCycles) {
         this.row = row;
         this.column = column;
-        this.rowDirection = rowDirection;
-        this.columnDirection = columnDirection;
+        this.verticalDirection = verticalDirection;
+        this.horizontalDirection = horizontalDirection;
         this.renderCycles = renderCycles;
     }
 }
+
+class CollisionOutcome {
+    constructor(cell, newHorizontalDirection, newVerticalDirection, fromDiagonal) {
+        this.cell = cell;
+        this.newHorizontalDirection = newHorizontalDirection;
+        this.newVerticalDirection = newVerticalDirection;
+        this.fromDiagonal = fromDiagonal
+    }
+}
+
 
 class UserBar {
     constructor(width, rowIndex, state, renderCycles) {
@@ -102,29 +130,18 @@ export class BreakoutMatrix {
     }
 
     #updateBallAndCollisions = () => {
-        let newBallState = { ...this.ball };
         const skipRenderCycle = this.updateCalls % this.ball.renderCycles !== 0;
         // Don't update ball
         if (skipRenderCycle) {
-            return newBallState;
+            return;
         }
 
-        this.#updateIfBoundaryCollision(newBallState);
-        this.#updateIfBlockCollision(newBallState);
-        this.#updateIfUserCollision(newBallState);
-        
-        const rowValueUpdate = newBallState.rowDirection === BallRowDirectionEnum.Down ? 1 : -1;
-        newBallState.row += rowValueUpdate;
-        const columnValueUpdate = newBallState.columnDirection === BallColumnDirectionEnum.Right ? 1 : -1;
-        newBallState.column += columnValueUpdate;
-
-        this.#assignCellType(this.ball.row, this.ball.column, CellTypeEnum.Blank);        
-        this.ball = newBallState;
-        this.#addBall(this.ball.row, this.ball.column);
-
-        const gameOver = this.ball.row === this.numberOfRows - 1;
+        const boundaryCollision = this.#checkCollisionsAndUpdateBallDirection();
+        const gameOver = boundaryCollision === BoundaryCollisionEnum.VerticalDown;
         if (gameOver) {
             this.gameState = GameStateEnum.GameOver;
+        } else {
+            this.#updateBallInMatrix();
         }
 
         if (this.#userWon()) {
@@ -132,137 +149,54 @@ export class BreakoutMatrix {
         }
     }
 
-    #updateIfBoundaryCollision = (newBallState) => {
-        // Horizontal boundary collision
-        if (newBallState.column === this.numberOfColumns - 1) {
-            newBallState.columnDirection = BallColumnDirectionEnum.Left;
-        } else if (newBallState.column === 0) {
-            newBallState.columnDirection = BallColumnDirectionEnum.Right;
+    #checkCollisionsAndUpdateBallDirection = () => {
+        const collisionChecker = new CollisionChecker(this.ball, this.matrix, this.numberOfColumns, this.numberOfRows);
+        const boundaryCollision = collisionChecker.getBoundaryCollision();
+        if (boundaryCollision) {
+            this.#updateBallStateIfBoundaryCollision(boundaryCollision);
+        } else {
+            const blockCollision = collisionChecker.getBlockCollision();
+            if (blockCollision) {
+                this.#updateBallStateIfBlockCollision(blockCollision);
+            } else {
+                const userRow = this.matrix[this.userBar.rowIndex];
+                let currentUserStartColumn = userRow.indexOf(CellTypeEnum.User);
+                const userColumns = this.#createArray(this.userBar.width, () => currentUserStartColumn++);
+                const userCollision = collisionChecker.getUserCollision(this.userBar.rowIndex, userColumns); 
+                if (userCollision) {
+                    this.#updateBallStateIfUserCollision(userCollision);
+                }
+            }
         }
 
-        // Vertical boundary collision
-        if (newBallState.row === 0) {
-            newBallState.rowDirection = BallRowDirectionEnum.Down;
-        }
+        return boundaryCollision;
+    } 
 
+    #updateBallStateIfBoundaryCollision = (boundaryCollision) => {
+        if (boundaryCollision === BoundaryCollisionEnum.HorizontalRight) {
+            this.ball.horizontalDirection = BallHorizontalDirectionEnum.Left;
+        } else if (boundaryCollision === BoundaryCollisionEnum.HorizontalLeft) {
+            this.ball.horizontalDirection = BallHorizontalDirectionEnum.Right;
+        } else if (boundaryCollision === BoundaryCollisionEnum.VerticalUp) {
+            this.ball.verticalDirection = BallVerticalDirectionEnum.Down;
+        }
     }
 
-    #updateIfBlockCollision = (newBallState) => {
-        let collisionCell = this.#getBlockCellIfHorizontalCollision(newBallState);
-        if (collisionCell.row === null && collisionCell.column === null) {
-            collisionCell = this.#getBlockCellIfVerticalCollision(newBallState);
-        }
-        if (collisionCell.row === null && collisionCell.column === null) {
-            collisionCell = this.#updateBlockCellIfDiagonalCollision(newBallState);
-        }
-        if (collisionCell.row === null && collisionCell.column === null) {
+    #updateBallStateIfBlockCollision = (blockCollision) => {
+        if (blockCollision.cell.row === null && blockCollision.cell.column === null) {
             return;
         }
-        this.#reduceBlock(collisionCell);
+        this.ball.verticalDirection = blockCollision.newVerticalDirection;
+        this.ball.horizontalDirection = blockCollision.newHorizontalDirection;
+        if (blockCollision.fromDiagonal) {
+            console.log(blockCollision)
+        }
+        this.#reduceBlock(blockCollision)
     }
 
-    #getBlockCellIfHorizontalCollision = (newBallState) => {
-        let collisionRow = null;
-        let collisionColumn = null;
-        const blockToTheLeft = BlockTypes.includes(this.matrix[newBallState.row][newBallState.column - 1]);
-        const blockToTheRight = BlockTypes.includes(this.matrix[newBallState.row][newBallState.column + 1]);
-        if (blockToTheLeft) {
-            newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            collisionRow = newBallState.row;
-            collisionColumn = newBallState.column - 1 
-        } else if (blockToTheRight) {
-            newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            collisionRow = newBallState.row
-            collisionColumn = newBallState.column + 1;
-        }
-
-        return new SimpleCell(collisionRow, collisionColumn);
-    }
-
-    #getBlockCellIfVerticalCollision = (newBallState) => {
-        let collisionCell = null;
-        let collisionColumn = null;
-        const blockOnTop = (newBallState.row > 0) && (BlockTypes.includes(this.matrix[newBallState.row - 1][newBallState.column]));
-        const blockBelow = BlockTypes.includes(this.matrix[newBallState.row + 1][newBallState.column]);
-        if (blockOnTop) {
-            newBallState.rowDirection = BallRowDirectionEnum.Down;
-            collisionCell = newBallState.row - 1;
-            collisionColumn = newBallState.column;
-        } else if (blockBelow) {
-            newBallState.rowDirection = BallRowDirectionEnum.Up;
-            collisionCell = newBallState.row + 1;
-            collisionColumn = newBallState.column;
-        }
-
-        return new SimpleCell(collisionCell, collisionColumn)
-    }
-
-    #updateBlockCellIfDiagonalCollision = (newBallState) => {
-        return this.#updateIfDiagonalCollision(newBallState, BlockTypes)
-    }
-
-    #updateIfDiagonalCollision = (newBallState, cellTypes) => {
-        let collisionRow = null;
-        let collisionColumn = null;
-        
-        const columnToTheRight = newBallState.column + 1;
-        const columnToTheLeft = newBallState.column - 1;
-        const rowUp = newBallState.row - 1;
-        const rowDown = newBallState.row + 1;   
-        
-        const collisionToTheLeftDown = (
-            cellTypes.includes(this.matrix[rowDown][columnToTheLeft])
-            && newBallState.rowDirection === BallRowDirectionEnum.Down
-            && newBallState.columnDirection === BallColumnDirectionEnum.Left
-        )
-        if (collisionToTheLeftDown) {
-            newBallState.rowDirection = BallRowDirectionEnum.Up;
-            newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            collisionRow = rowDown;
-            collisionColumn = columnToTheLeft;
-        }
-        const collisionToTheLeftUp = (
-            rowUp > 0
-            && cellTypes.includes(this.matrix[rowUp][columnToTheLeft])
-            && newBallState.rowDirection === BallRowDirectionEnum.Up
-            && newBallState.columnDirection === BallColumnDirectionEnum.Left 
-        )
-        if (collisionToTheLeftUp) {
-            newBallState.rowDirection = BallRowDirectionEnum.Down;
-            newBallState.columnDirection = BallColumnDirectionEnum.Right;
-            collisionRow = rowUp;
-            collisionColumn = columnToTheLeft;
-        }
-        const collisionToTheRightDown = (
-            cellTypes.includes(this.matrix[rowDown][columnToTheRight])
-            && newBallState.rowDirection === BallRowDirectionEnum.Down
-            && newBallState.columnDirection === BallColumnDirectionEnum.Right
-        )
-        if (collisionToTheRightDown) {
-            newBallState.rowDirection = BallRowDirectionEnum.Up;
-            newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            collisionRow = rowDown;
-            collisionColumn = columnToTheRight;
-        } 
-        const collisionToTheRightUp = ( 
-            rowUp > 0
-            && cellTypes.includes(this.matrix[rowUp][columnToTheRight])
-            && newBallState.rowDirection === BallRowDirectionEnum.Up
-            && newBallState.columnDirection === BallColumnDirectionEnum.Right
-        )
-        if (collisionToTheRightUp) {
-            newBallState.rowDirection = BallRowDirectionEnum.Down;
-            newBallState.columnDirection = BallColumnDirectionEnum.Left;
-            collisionRow = rowUp;
-            collisionColumn = columnToTheRight;
-        }
-
-        return new SimpleCell(collisionRow, collisionColumn)
-    }
-
-    #reduceBlock = (collisionCell) => {
-        const row = collisionCell.row;
-        const column = collisionCell.column;
+    #reduceBlock = (blockCollision) => {
+        const row = blockCollision.cell.row;
+        const column = blockCollision.cell.column;
         const isBlockColumn = (col) => BlockTypes.includes(this.matrix[row][col]);
         // check to the right
         let columnToCheck = column;
@@ -279,14 +213,14 @@ export class BreakoutMatrix {
             columnToCheck -= 1;
         }
 
-        this.#addMissingColumn(row, columnsToReduce);
+        this.#checkAllTheBlockWasDeleted(row, columnsToReduce);
         const reducedBlock = BlockReductionMap[this.matrix[row][column]];
         for (let col of columnsToReduce) {
             this.matrix[row][col] = reducedBlock;
         }
     }
 
-    #addMissingColumn = (row, columnsToReduce) => {
+    #checkAllTheBlockWasDeleted = (row, columnsToReduce) => {
         const BlockOrBall = [CellTypeEnum.Ball, ...BlockTypes]
         const minColumn = Math.min(...columnsToReduce);  
         const maxColumn = Math.max(...columnsToReduce);
@@ -313,17 +247,9 @@ export class BreakoutMatrix {
         return userWon;
     }
 
-    #updateIfUserCollision = (newBallState) => {
-        if (newBallState.row !== this.userBar.rowIndex - 1) return;
-        
-        const userRow = this.matrix[this.userBar.rowIndex];
-        let currentUserStartColumn = userRow.indexOf(CellTypeEnum.User);
-        const userColumns = this.#createArray(this.userBar.width, () => currentUserStartColumn++);
-        if (userColumns.includes(newBallState.column)) {
-            newBallState.rowDirection = BallRowDirectionEnum.Up;
-        }
-
-        this.#updateIfDiagonalCollision(newBallState, [CellTypeEnum.User])
+    #updateBallStateIfUserCollision = (userCollision) => {
+        this.ball.verticalDirection = userCollision.newVerticalDirection;
+        this.ball.horizontalDirection = userCollision.newHorizontalDirection;
     }
 
     #createRow = (mapFunction) => {
@@ -396,9 +322,7 @@ export class BreakoutMatrix {
         });
 
         this.matrix = matrix;
-        const ballColumn = Math.floor(this.numberOfColumns / 2);
-        const ballRow = this.userBar.rowIndex - 1;
-        this.#addBall(ballRow, ballColumn);
+        this.#addBallToMatrix();
 
         return this.matrix
     }
@@ -406,16 +330,30 @@ export class BreakoutMatrix {
     #initBall = function(ballSpeed) {
         const initRow = this.userBar.rowIndex - 1;
         const initColumn = Math.round(this.numberOfColumns / 2);
-        const columnDirection = BallColumnDirectionEnum.Right;
-        const rowDirection = BallRowDirectionEnum.Up;
+        const columnDirection = BallHorizontalDirectionEnum.Right;
+        const rowDirection = BallVerticalDirectionEnum.Up;
         const renderCycles = ballSpeed || 2;
         const ball = new Ball(initRow, initColumn, rowDirection, columnDirection, renderCycles);
 
         this.ball = ball;
     }
 
-    #addBall = (row, column) => {
-        this.#assignCellType(row, column, CellTypeEnum.Ball);
+    #addBallToMatrix = () => {
+        this.#assignCellType(this.ball.row, this.ball.column, CellTypeEnum.Ball);
+    }
+
+    #deleteBallFromMatrix = () => {
+        this.#assignCellType(this.ball.row, this.ball.column, CellTypeEnum.Blank);
+    }
+
+    #updateBallInMatrix = () => {
+        this.#deleteBallFromMatrix();   
+
+        const rowValueUpdate = this.ball.verticalDirection === BallVerticalDirectionEnum.Down ? 1 : -1;
+        this.ball.row += rowValueUpdate;
+        const columnValueUpdate = this.ball.horizontalDirection === BallHorizontalDirectionEnum.Right ? 1 : -1;
+        this.ball.column += columnValueUpdate;
+        this.#addBallToMatrix(this.ball.row, this.ball.column);
     }
 
     #assignCellType = (row, column, type) => {
@@ -432,10 +370,172 @@ export class BreakoutMatrix {
 }
 
 
-class MatrixUtils {
-
-}
-
 class CollisionChecker {
+    constructor(ball, matrix, numberOfColumns, numberOfRows) {
+        this.ball = ball
+        this.matrix = matrix
+        this.numberOfColumns = numberOfColumns
+        this.numberOfRows = numberOfRows
+        this.columnToTheRight = ball.column + 1;
+        this.columnToTheLeft = ball.column - 1;
+        this.rowUp = ball.row - 1;
+        this.rowDown = ball.row + 1;   
+    }
 
+    getBoundaryCollision = () => {
+        let result = null;
+        if (this.ball.column === this.numberOfColumns - 1) {
+            result = BoundaryCollisionEnum.HorizontalRight;
+        } else if (this.ball.column === 0) {
+            result = BoundaryCollisionEnum.HorizontalLeft
+        } else if (this.ball.row === 0) {
+            result = BoundaryCollisionEnum.VerticalUp;
+        } else if (this.ball.row === this.numberOfRows - 1) {
+            result = BoundaryCollisionEnum.VerticalDown;
+        }
+
+        return result;
+    }
+
+    getBlockCollision = () => {
+        let collision = this.#getBlockCellHorizontalCollision();
+        if (this.#collisionIsNull(collision)) {
+            collision = this.#getBlockCellVerticalCollision();
+        } else if (this.#collisionIsNull(collision)) {
+            collision = this.#getBlockCellDiagonalCollision();
+        }
+
+        console.log(
+            this.#collisionIsNull(this.#getBlockCellVerticalCollision()),
+            this.#collisionIsNull(this.#getBlockCellDiagonalCollision()),
+            this.#collisionIsNull(collision),
+        )
+
+        return this.#collisionIsNull(collision) ? null : collision;
+    }
+
+    getUserCollision = (userRow, userColumns) => {
+        const ballIsNotAboveUser = this.ball.row !== userRow - 1; 
+        if (ballIsNotAboveUser) return;
+        
+        let collision;
+        if (userColumns.includes(this.ball.column)) {
+            const cell = new SimpleCell(null, null);
+            collision = new CollisionOutcome(cell, this.ball.horizontalDirection, BallVerticalDirectionEnum.Up) 
+        } else {
+            collision = this.#getDiagonalCollision([CellTypeEnum.User])
+        }
+
+        return collision;
+    }
+
+    #collisionIsNull = (collision) => {
+        return collision.cell.row === null && collision.cell.column === null;
+    }
+
+    #getBlockCellHorizontalCollision = () => {
+        let collisionRow = null;
+        let collisionColumn = null;
+        let newHorizontalDirection = this.ball.horizontalDirection;
+        const blockToTheLeft = BlockTypes.includes(this.matrix[this.ball.row][this.columnToTheLeft]);
+        const blockToTheRight = BlockTypes.includes(this.matrix[this.ball.row][this.columnToTheRight]);
+        if (blockToTheLeft) {
+            newHorizontalDirection = BallHorizontalDirectionEnum.Right;
+            collisionRow = this.ball.row;
+            collisionColumn = this.ball.column - 1 
+        } else if (blockToTheRight) {
+            newHorizontalDirection = BallHorizontalDirectionEnum.Left;
+            collisionRow = this.ball.row
+            collisionColumn = this.ball.column + 1;
+        }
+        const blockCell = new SimpleCell(collisionRow, collisionColumn);
+        const collisionOutcome = new CollisionOutcome(blockCell, newHorizontalDirection, this.ball.verticalDirection);
+
+        return collisionOutcome;
+    }
+
+    #getBlockCellVerticalCollision = () => {
+        let collisionRow = null;
+        let collisionColumn = null;
+        let newVerticalDirection = this.ball.verticalDirection;
+        const blockOnTop = (this.ball.row > 0) && (BlockTypes.includes(this.matrix[this.rowUp][this.ball.column]));
+        const blockBelow = (this.ball.row < this.numberOfRows - 1) && BlockTypes.includes(this.matrix[this.rowDown][this.ball.column]);
+        if (blockOnTop) {
+            newVerticalDirection = BallVerticalDirectionEnum.Down;
+            collisionRow = this.rowUp;
+            collisionColumn = this.ball.column;
+        } else if (blockBelow) {
+            newVerticalDirection = BallVerticalDirectionEnum.Up;
+            collisionRow = this.rowDown;
+            collisionColumn = this.ball.column;
+        }
+
+        const blockCell = new SimpleCell(collisionRow, collisionColumn);
+        const collisionOutcome = new CollisionOutcome(blockCell, this.ball.horizontalDirection, newVerticalDirection);
+        
+        return collisionOutcome
+    }
+
+    #getBlockCellDiagonalCollision = () => {
+        return this.#getDiagonalCollision(BlockTypes)
+    }
+
+    #getDiagonalCollision = (cellTypes) => {
+        let collisionRow = null;
+        let collisionColumn = null;
+        let newVerticalDirection = this.ball.verticalDirection;
+        let newHorizontalDirection = this.ball.horizontalDirection;
+        
+        const collisionToTheLeftDown = (
+            cellTypes.includes(this.matrix[this.rowDown][this.columnToTheLeft])
+            && this.ball.verticalDirection === BallVerticalDirectionEnum.Down
+            && this.ball.horizontalDirection === BallHorizontalDirectionEnum.Left
+        )
+        if (collisionToTheLeftDown) {
+            newVerticalDirection = BallVerticalDirectionEnum.Up;
+            newHorizontalDirection = BallHorizontalDirectionEnum.Right;
+            collisionRow = this.rowDown;
+            collisionColumn = this.columnToTheLeft;
+        }
+        const collisionToTheLeftUp = (
+            this.rowUp > 0
+            && cellTypes.includes(this.matrix[this.rowUp][this.columnToTheLeft])
+            && this.ball.verticalDirection === BallVerticalDirectionEnum.Up
+            && this.ball.horizontalDirection === BallHorizontalDirectionEnum.Left 
+        )
+        if (collisionToTheLeftUp) {
+            newVerticalDirection = BallVerticalDirectionEnum.Down;
+            newHorizontalDirection = BallHorizontalDirectionEnum.Right;
+            collisionRow = this.rowUp;
+            collisionColumn = this.columnToTheLeft;
+        }
+        const collisionToTheRightDown = (
+            cellTypes.includes(this.matrix[this.rowDown][this.columnToTheRight])
+            && this.ball.verticalDirection === BallVerticalDirectionEnum.Down
+            && this.ball.horizontalDirection === BallHorizontalDirectionEnum.Right
+        )
+        if (collisionToTheRightDown) {
+            newVerticalDirection = BallVerticalDirectionEnum.Up;
+            newHorizontalDirection = BallHorizontalDirectionEnum.Left;
+            collisionRow = this.rowDown;
+            collisionColumn = this.columnToTheRight;
+        } 
+        const collisionToTheRightUp = ( 
+            this.rowUp > 0
+            && cellTypes.includes(this.matrix[this.rowUp][this.columnToTheRight])
+            && this.ball.verticalDirection === BallVerticalDirectionEnum.Up
+            && this.ball.horizontalDirection === BallHorizontalDirectionEnum.Right
+        )
+        if (collisionToTheRightUp) {
+            newVerticalDirection = BallVerticalDirectionEnum.Down;
+            newHorizontalDirection = BallHorizontalDirectionEnum.Left;
+            collisionRow = this.rowUp;
+            collisionColumn = this.columnToTheRight;
+        }
+
+        const collisionCell = new SimpleCell(collisionRow, collisionColumn);
+        const collisionOutcome = new CollisionOutcome(collisionCell, newHorizontalDirection, newVerticalDirection, true);
+
+        return collisionOutcome
+    }
 }

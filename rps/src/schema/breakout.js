@@ -15,17 +15,6 @@ export const UserStateEnum = Object.freeze({
 })
 
 
-export const BallColumnDirectionEnum = Object.freeze({
-    Right: Symbol("Right"),
-    Left: Symbol("Left")
-})
-
-
-export const BallRowDirectionEnum = Object.freeze({
-    Up: Symbol("Up"),
-    Down: Symbol("Down")
-})
-
 const BlockTypesEnum = Object.freeze({
     BlockWithLives_1: Symbol("BlockWithLives_1"),
     BlockWithLives_2: Symbol("BlockWithLives_2"),
